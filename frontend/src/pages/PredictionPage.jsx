@@ -43,7 +43,7 @@ function PredictionPage() {
 
     setStatus("Uploading and processing...");
     try {
-      const response = await fetch("http://localhost:5000/upload", {
+      const response = await fetch("http://localhost:3000/upload", {
         method: "POST",
         body: formData,
       });
@@ -84,8 +84,18 @@ function PredictionPage() {
             <label>Select Month:</label>
             <select value={month} onChange={(e) => setMonth(e.target.value)}>
               {[
-                "January", "February", "March", "April", "May", "June",
-                "July", "August", "September", "October", "November", "December"
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
               ].map((m) => (
                 <option key={m} value={m}>
                   {m}
@@ -94,19 +104,23 @@ function PredictionPage() {
             </select>
           </div>
 
-          {["wave", "distance", "salinity", "bathymetry", "chlorophyll"].map((key, index) => (
-            <div key={index} className="file-input-group">
-              <label>{`${index + 1}. ${key.charAt(0).toUpperCase() + key.slice(1)}:`}</label>
-              <div className="file-input-container">
-                <input
-                  type="file"
-                  accept=".tif,.tiff"
-                  onChange={(e) => handleFileChange(e, key)}
-                />
-                {files[key] && <span className="file-check">✓</span>}
+          {["wave", "distance", "salinity", "bathymetry", "chlorophyll"].map(
+            (key, index) => (
+              <div key={index} className="file-input-group">
+                <label>{`${index + 1}. ${
+                  key.charAt(0).toUpperCase() + key.slice(1)
+                }:`}</label>
+                <div className="file-input-container">
+                  <input
+                    type="file"
+                    accept=".tif,.tiff"
+                    onChange={(e) => handleFileChange(e, key)}
+                  />
+                  {files[key] && <span className="file-check">✓</span>}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          )}
 
           <div>
             <button onClick={handleSubmit} className="btn-primary">
@@ -114,7 +128,11 @@ function PredictionPage() {
             </button>
 
             {status && (
-              <div className={`status-message ${status.includes("Success") ? "status-success" : "status-error"}`}>
+              <div
+                className={`status-message ${
+                  status.includes("Success") ? "status-success" : "status-error"
+                }`}
+              >
                 {status}
               </div>
             )}
