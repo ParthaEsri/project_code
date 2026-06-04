@@ -456,7 +456,7 @@ Your address string
   │                                                           │
   └─ NO ----------------------------------------------- null (error returned)
                                                              │
-                                                             ▼
+                                                             
                                                Ambiguity check runs on winner:
                                                Are top 2 scores within 5 points?
                                                ├─ YES - AMBIGUOUS_ADDRESS response
