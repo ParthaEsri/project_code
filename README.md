@@ -768,10 +768,10 @@ handleSchoolLookup("742 Evergreen Terrace Springfield OR 97401");
 │    f                  - json                                                │
 -------------------------------------------------------------------------------
 │  Always check these in your code                                            │
-│    • data.status === "AMBIGUOUS_ADDRESS" before reading schoolResults       │
-│    • Object.keys(data.schoolResults).length > 0 before iterating            │
-│    • data.schoolResults["1042"][0]  - always index [0] on the array         │
-│    • x = longitude, y = latitude   - not the other way around               │
+│    * data.status === "AMBIGUOUS_ADDRESS" before reading schoolResults       │
+│    * Object.keys(data.schoolResults).length > 0 before iterating            │
+│    * data.schoolResults["1042"][0]  - always index [0] on the array         │
+│    * x = longitude, y = latitude   - not the other way around               │
 -------------------------------------------------------------------------------
 ```
 
