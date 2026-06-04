@@ -22,8 +22,6 @@ This guide covers everything you need to call the SchoolSite Locator (SSL) API f
    - [Way 2 — cURL (terminal)](#way-2--curl-terminal)
    - [Way 3 — Postman](#way-3--postman-1)
    - [Way 4 — JavaScript in a web page](#way-4--javascript-in-a-web-page)
-   - [Way 5 — Python automation script](#way-5--python-automation-script)
-   - [Way 6 — Newman CLI (CI/CD pipeline)](#way-6--newman-cli-cicd-pipeline)
 5. [Endpoint: addressQuery](#5-endpoint-addressquery)
    - [What it does](#what-it-does-1)
    - [Input parameters](#input-parameters-1)
@@ -34,13 +32,8 @@ This guide covers everything you need to call the SchoolSite Locator (SSL) API f
    - [Way 2 — cURL (terminal)](#way-2--curl-terminal-1)
    - [Way 3 — Postman](#way-3--postman-2)
    - [Way 4 — JavaScript fetch](#way-4--javascript-fetch)
-   - [Way 5 — Python batch script](#way-5--python-batch-script)
-   - [Way 6 — Newman CLI](#way-6--newman-cli)
-6. [Endpoint: properties (health check)](#6-endpoint-properties-health-check)
-7. [Full Postman collection setup](#7-full-postman-collection-setup)
-8. [Understanding the response structure](#8-understanding-the-response-structure)
-9. [Common errors and what they mean](#9-common-errors-and-what-they-mean)
-10. [Quick reference card](#10-quick-reference-card)
+6. [Common errors and what they mean](#5-common-errors-and-what-they-mean)
+7. [Quick reference card](#6-quick-reference-card)
 
 ---
 
@@ -114,10 +107,10 @@ No geocoding happens here. It is the fastest of the two lookup endpoints.
 
 | Parameter | Required | Type | Description |
 |-----------|----------|------|-------------|
-| `apiKey` | ✅ Yes | string | Your API key |
-| `districtID` | ✅ Yes | string | The district group layer name in the map service. Case-insensitive. |
-| `location` | ✅ Yes | JSON string | An Esri point JSON object. See the format below. |
-| `f` | ✅ Yes | string | Always send `json` |
+| `apiKey` |  Yes | string | Your API key |
+| `districtID` |  Yes | string | The district group layer name in the map service. Case-insensitive. |
+| `location` |  Yes | JSON string | An Esri point JSON object. See the format below. |
+| `f` |  Yes | string | Always send `json` |
 
 ### How the location JSON must look
 
@@ -302,7 +295,7 @@ https://www.schoolsitelocator.com/server/rest/services/ssl_Demo/MapServer/exts/S
 
 **Adding a test script (optional but recommended):**
 
-Go to the **Tests** tab and paste this. It runs automatically after every request and flags problems:
+Go to the **Scripts** tab and paste this. It runs automatically after every request and flags problems:
 
 ```javascript
 pm.test("Request succeeded", () => pm.response.to.have.status(200));
@@ -348,7 +341,7 @@ async function findSchoolsByCoordinates(longitude, latitude) {
   const location = JSON.stringify({
     x: longitude,
     y: latitude,
-    spatialReference: { wkid: 4326 }
+    spatialReference: { wkid: 4326 [update based on your SR]}
   });
 
   const params = new URLSearchParams({
@@ -415,267 +408,6 @@ findSchoolsByCoordinates(-118.2437, 34.0522)
   });
 ```
 
-**Using the result to populate a page element:**
-
-```javascript
-findSchoolsByCoordinates(-118.2437, 34.0522).then(result => {
-  const container = document.getElementById("school-results");
-  container.innerHTML = "";
-
-  for (const [code, schoolArray] of Object.entries(result.schoolResults)) {
-    const s = schoolArray[0];
-    const card = document.createElement("div");
-    card.className = "school-card";
-    card.innerHTML = `
-      <h3>${s.SCHOOL_NAME}</h3>
-      <p>Grades: ${s.GRADES}</p>
-      <p>${s.ADDRESS}, ${s.CITY} ${s.ZIP}</p>
-      <p>📞 ${s.PHONE}</p>
-    `;
-    container.appendChild(card);
-  }
-});
-```
-
----
-
-### Way 5 — Python automation script
-
-Use this when you need to look up schools for a list of coordinates — for example processing a CSV of student addresses that have already been geocoded, or running nightly boundary checks.
-
-```python
-import requests
-import json
-import csv
-
-# ─── Configuration ────────────────────────────────────────────────────────────
-BASE_URL    = "https://www.schoolsitelocator.com/server/rest/services/ssl_Demo/MapServer/exts/SSL_API"
-API_KEY     = "c17b5e11-172a-4e81-a79c-5af64f7f0e0b"
-DISTRICT_ID = "demo"
-
-# ─── Single lookup function ───────────────────────────────────────────────────
-def find_schools_by_coordinates(longitude: float, latitude: float) -> dict:
-    """
-    Look up assigned schools for a given longitude/latitude point.
-
-    Parameters
-    ----------
-    longitude : float
-        X coordinate in WGS84 (e.g. -118.2437)
-    latitude : float
-        Y coordinate in WGS84 (e.g. 34.0522)
-
-    Returns
-    -------
-    dict
-        Full API response with schoolResults, walkZoneResults, trusteeResults
-    """
-    location_json = json.dumps({
-        "x": longitude,
-        "y": latitude,
-        "spatialReference": {"wkid": 4326}
-    })
-
-    payload = {
-        "apiKey":     API_KEY,
-        "districtID": DISTRICT_ID,
-        "location":   location_json,
-        "f":          "json"
-    }
-
-    response = requests.post(
-        f"{BASE_URL}/locationQuery",
-        data=payload,
-        timeout=15
-    )
-    response.raise_for_status()
-
-    data = response.json()
-
-    if "error" in data:
-        raise ValueError(f"API error {data['error']['code']}: {data['error']['message']}")
-
-    return data
-
-
-# ─── Print results helper ─────────────────────────────────────────────────────
-def print_school_results(data: dict):
-    schools = data.get("schoolResults", {})
-    if not schools:
-        print("  No schools found for this location.")
-        return
-
-    for code, school_list in schools.items():
-        s = school_list[0]
-        print(f"  [{code}] {s.get('SCHOOL_NAME', 'Unknown')}")
-        print(f"         Grades  : {s.get('GRADES', 'N/A')}")
-        print(f"         Address : {s.get('ADDRESS', '')}, {s.get('CITY', '')}")
-
-
-# ─── Single lookup ────────────────────────────────────────────────────────────
-print("Looking up schools for a single coordinate...")
-result = find_schools_by_coordinates(-118.2437, 34.0522)
-print_school_results(result)
-
-
-# ─── Batch lookup from a CSV file ─────────────────────────────────────────────
-# Input CSV format:  student_id, longitude, latitude
-# Output CSV format: student_id, elementary, middle, high
-
-def batch_lookup(input_csv: str, output_csv: str):
-    """Process a list of coordinates and write school assignments to a new CSV."""
-    results = []
-
-    with open(input_csv, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            student_id = row["student_id"]
-            lng = float(row["longitude"])
-            lat = float(row["latitude"])
-
-            print(f"Processing student {student_id}...")
-
-            try:
-                data = find_schools_by_coordinates(lng, lat)
-                schools = data.get("schoolResults", {})
-
-                # Separate out by grade level using the GRADES field
-                elementary = middle = high = ""
-                for code, school_list in schools.items():
-                    s = school_list[0]
-                    grades = s.get("GRADES", "")
-                    name   = s.get("SCHOOL_NAME", code)
-                    if "K" in grades or "1" in grades:
-                        elementary = name
-                    elif "6" in grades or "7" in grades:
-                        middle = name
-                    elif "9" in grades or "10" in grades:
-                        high = name
-
-                results.append({
-                    "student_id":  student_id,
-                    "elementary":  elementary,
-                    "middle":      middle,
-                    "high":        high,
-                    "error":       ""
-                })
-
-            except Exception as e:
-                results.append({
-                    "student_id":  student_id,
-                    "elementary":  "",
-                    "middle":      "",
-                    "high":        "",
-                    "error":       str(e)
-                })
-
-    with open(output_csv, "w", newline="") as f:
-        fieldnames = ["student_id", "elementary", "middle", "high", "error"]
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(results)
-
-    print(f"\nDone. Results written to {output_csv}")
-
-
-# Uncomment to run batch mode:
-# batch_lookup("students.csv", "school_assignments.csv")
-```
-
----
-
-### Way 6 — Newman CLI (CI/CD pipeline)
-
-Newman is Postman's command-line runner. You export your Postman collection to a JSON file and run it automatically in a CI/CD pipeline (GitHub Actions, Jenkins, etc.) to verify the API is still working after every deployment.
-
-**Step 1 — Install Newman:**
-
-```bash
-npm install -g newman
-```
-
-**Step 2 — Save this as `ssl_api_tests.json`:**
-
-```json
-{
-  "info": {
-    "name": "SSL API — locationQuery smoke test",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  },
-  "item": [
-    {
-      "name": "locationQuery — demo district",
-      "request": {
-        "method": "POST",
-        "url": "https://www.schoolsitelocator.com/server/rest/services/ssl_Demo/MapServer/exts/SSL_API/locationQuery",
-        "body": {
-          "mode": "urlencoded",
-          "urlencoded": [
-            { "key": "apiKey",     "value": "c17b5e11-172a-4e81-a79c-5af64f7f0e0b" },
-            { "key": "districtID", "value": "demo" },
-            { "key": "location",   "value": "{\"x\":-118.2437,\"y\":34.0522,\"spatialReference\":{\"wkid\":4326}}" },
-            { "key": "f",          "value": "json" }
-          ]
-        }
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test('Status 200', () => pm.response.to.have.status(200));",
-              "pm.test('Has schoolResults', () => {",
-              "  const body = pm.response.json();",
-              "  pm.expect(body).to.have.property('schoolResults');",
-              "  pm.expect(Object.keys(body.schoolResults).length).to.be.above(0);",
-              "});"
-            ]
-          }
-        }
-      ]
-    }
-  ]
-}
-```
-
-**Step 3 — Run it:**
-
-```bash
-newman run ssl_api_tests.json
-```
-
-**Step 4 — Use in a GitHub Actions workflow:**
-
-```yaml
-name: SSL API Health Check
-
-on:
-  push:
-    branches: [main]
-  schedule:
-    - cron: "0 8 * * 1-5"   # weekdays at 8am
-
-jobs:
-  api-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install Newman
-        run: npm install -g newman
-
-      - name: Run SSL API tests
-        run: newman run ssl_api_tests.json --reporters cli,junit --reporter-junit-export results.xml
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: newman-results
-          path: results.xml
-```
-
----
 
 ## 5. Endpoint: addressQuery
 
@@ -689,11 +421,11 @@ The geocoding happens in two stages internally. First, the server tries the dist
 
 | Parameter | Required | Type | Description |
 |-----------|----------|------|-------------|
-| `apiKey` | ✅ Yes | string | Your API key |
-| `districtID` | ✅ Yes | string | The district group layer name. Case-insensitive. |
-| `address` | ✅ Yes | string | Full street address. Include city and state for best accuracy. |
-| `restGeocodeService` | ✅ Yes | string | Full URL to the district's internal ArcGIS geocoder `findAddressCandidates` endpoint. The API tries this first before falling back to Esri World. |
-| `f` | ✅ Yes | string | Always send `json` |
+| `apiKey` |  Yes | string | Your API key |
+| `districtID` |  Yes | string | The district group layer name. Case-insensitive. |
+| `address` | Yes | string | Full street address. Include city and state for best accuracy. |
+| `restGeocodeService` |  Yes | string | Full URL to the district's internal ArcGIS geocoder `findAddressCandidates` endpoint. The API tries this first before falling back to Esri World. |
+| `f` | Yes | string | Always send `json` |
 
 ### The geocoding chain explained
 
@@ -702,34 +434,33 @@ When you call `addressQuery`, here is exactly what happens inside the server bef
 ```
 Your address string
         │
-        ▼
-┌────────────────────────────────────┐
+--------------------------------------  
 │  Step 1: Try internal geocoder     │
 │  (restGeocodeService parameter)    │
 │  Threshold: score must be >= 80    │
-└────────────────────────────────────┘
+--------------------------------------
         │
   Score >= 80?
-  ├─ YES ──────────────────────────────────────────────► Point found
+  ├─ YES ------------------------------------------------ Point found
   │                                                           │
   └─ NO                                                       │
         │                                                     │
-        ▼                                                     │
-┌────────────────────────────────────┐                       │
-│  Step 2: Try Esri World Geocoder   │                       │
-│  Threshold: score must be >= 85    │                       │
-└────────────────────────────────────┘                       │
+        |                                                     │
+--------------------------------------                        │
+│  Step 2: Try Esri World Geocoder   │                        │
+│  Threshold: score must be >= 85    │                        │
+--------------------------------------                        │
         │                                                     │
   Score >= 85?                                                │
-  ├─ YES ──────────────────────────────────────────────► Point found
+  ├─ YES ----------------------------------------------- Point found
   │                                                           │
-  └─ NO ─────────────────────────────────────────────► null (error returned)
+  └─ NO ----------------------------------------------- null (error returned)
                                                              │
                                                              ▼
                                                Ambiguity check runs on winner:
                                                Are top 2 scores within 5 points?
-                                               ├─ YES → AMBIGUOUS_ADDRESS response
-                                               └─ NO  → proceed to spatial query
+                                               ├─ YES - AMBIGUOUS_ADDRESS response
+                                               └─ NO  - proceed to spatial query
 ```
 
 The score thresholds differ between the two geocoders because the Esri World Geocoder has broader coverage and a slightly stricter threshold helps prevent false matches when querying outside the district's local area.
@@ -988,440 +719,8 @@ async function handleSchoolLookup(addressInput) {
 handleSchoolLookup("742 Evergreen Terrace Springfield OR 97401");
 ```
 
----
 
-### Way 5 — Python batch script
-
-Use this when you have a list of addresses (from a spreadsheet, database, or enrollment form export) and need to process them all at once.
-
-```python
-import requests
-import json
-import csv
-import time
-
-# ─── Configuration ────────────────────────────────────────────────────────────
-BASE_URL     = "https://www.schoolsitelocator.com/server/rest/services/ssl_Demo/MapServer/exts/SSL_API"
-API_KEY      = "c17b5e11-172a-4e81-a79c-5af64f7f0e0b"
-DISTRICT_ID  = "demo"
-GEOCODER_URL = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates"
-
-# ─── Single address lookup ────────────────────────────────────────────────────
-def find_schools_by_address(address: str) -> dict:
-    """
-    Look up assigned schools for a street address.
-
-    Parameters
-    ----------
-    address : str
-        Full street address including city, state, and ZIP for best accuracy.
-        Example: "742 Evergreen Terrace, Springfield, OR 97401"
-
-    Returns
-    -------
-    dict
-        API response. Check for 'status' == 'AMBIGUOUS_ADDRESS' before
-        reading 'schoolResults'.
-    """
-    payload = {
-        "apiKey":             API_KEY,
-        "districtID":         DISTRICT_ID,
-        "address":            address,
-        "restGeocodeService": GEOCODER_URL,
-        "f":                  "json"
-    }
-
-    response = requests.post(
-        f"{BASE_URL}/addressQuery",
-        data=payload,
-        timeout=20
-    )
-    response.raise_for_status()
-    return response.json()
-
-
-# ─── Print one result ─────────────────────────────────────────────────────────
-def print_result(address: str, data: dict):
-    print(f"\nAddress: {address}")
-
-    if data.get("status") == "AMBIGUOUS_ADDRESS":
-        print("  ⚠ Ambiguous — did you mean:")
-        for suggestion in data.get("suggestedAddresses", []):
-            print(f"    → {suggestion.get('address', suggestion)}")
-        return
-
-    geo = data.get("geocodeResults", {})
-    print(f"  Matched : {geo.get('matchedAddress', 'N/A')}")
-    print(f"  Score   : {geo.get('score', 'N/A')}")
-
-    schools = data.get("schoolResults", {})
-    if not schools:
-        print("  No schools found — location may be outside the district.")
-        return
-
-    for code, school_list in schools.items():
-        s = school_list[0]
-        print(f"  [{code}] {s.get('SCHOOL_NAME', 'N/A')}  ({s.get('GRADES', 'N/A')})")
-
-
-# ─── Batch mode ───────────────────────────────────────────────────────────────
-# Input CSV must have a column named "address"
-# Output CSV adds: matched_address, score, schools (pipe-separated names), error
-
-def batch_lookup_addresses(input_csv: str, output_csv: str):
-    rows_out = []
-
-    with open(input_csv, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            address = row.get("address", "").strip()
-            if not address:
-                continue
-
-            print(f"Processing: {address}")
-
-            try:
-                data = find_schools_by_address(address)
-
-                if data.get("status") == "AMBIGUOUS_ADDRESS":
-                    suggestions = " | ".join(
-                        s.get("address", "") for s in data.get("suggestedAddresses", [])
-                    )
-                    rows_out.append({**row,
-                        "matched_address": "",
-                        "score": "",
-                        "schools": "",
-                        "error": f"AMBIGUOUS: {suggestions}"
-                    })
-                else:
-                    geo = data.get("geocodeResults", {})
-                    school_names = " | ".join(
-                        sl[0].get("SCHOOL_NAME", code)
-                        for code, sl in data.get("schoolResults", {}).items()
-                    )
-                    rows_out.append({**row,
-                        "matched_address": geo.get("matchedAddress", ""),
-                        "score":           geo.get("score", ""),
-                        "schools":         school_names,
-                        "error":           ""
-                    })
-
-            except Exception as e:
-                rows_out.append({**row,
-                    "matched_address": "",
-                    "score":           "",
-                    "schools":         "",
-                    "error":           str(e)
-                })
-
-            time.sleep(0.3)   # be polite — don't hammer the server
-
-    if rows_out:
-        with open(output_csv, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=rows_out[0].keys())
-            writer.writeheader()
-            writer.writerows(rows_out)
-        print(f"\nDone. Written to {output_csv}")
-
-
-# ─── Quick single test ────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    result = find_schools_by_address("742 Evergreen Terrace Springfield OR 97401")
-    print_result("742 Evergreen Terrace Springfield OR 97401", result)
-
-    # To run batch mode, create a CSV with an "address" column and call:
-    # batch_lookup_addresses("input.csv", "output.csv")
-```
-
----
-
-### Way 6 — Newman CLI
-
-```bash
-# Create the collection file
-cat > ssl_addressquery_test.json << 'EOF'
-{
-  "info": {
-    "name": "SSL API — addressQuery smoke test",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  },
-  "item": [
-    {
-      "name": "addressQuery — normal address",
-      "request": {
-        "method": "POST",
-        "url": "https://www.schoolsitelocator.com/server/rest/services/ssl_Demo/MapServer/exts/SSL_API/addressQuery",
-        "body": {
-          "mode": "urlencoded",
-          "urlencoded": [
-            { "key": "apiKey",             "value": "c17b5e11-172a-4e81-a79c-5af64f7f0e0b" },
-            { "key": "districtID",         "value": "demo" },
-            { "key": "address",            "value": "742 Evergreen Terrace Springfield OR 97401" },
-            { "key": "restGeocodeService", "value": "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates" },
-            { "key": "f",                  "value": "json" }
-          ]
-        }
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test('Status 200', () => pm.response.to.have.status(200));",
-              "const body = pm.response.json();",
-              "const isAmbiguous = body.status === 'AMBIGUOUS_ADDRESS';",
-              "pm.test('Response is valid (school result or ambiguous)', () => {",
-              "  pm.expect(isAmbiguous || body.schoolResults).to.exist;",
-              "});"
-            ]
-          }
-        }
-      ]
-    }
-  ]
-}
-EOF
-
-# Run the test
-newman run ssl_addressquery_test.json
-```
-
----
-
-## 6. Endpoint: properties (health check)
-
-This endpoint requires no authentication. It returns the current configuration the SOE is running with — useful for verifying that layer names are set correctly, or as a simple health check to confirm the service is up.
-
-**Request:**
-
-```bash
-curl "https://www.schoolsitelocator.com/server/rest/services/ssl_Demo/MapServer/exts/SSL_API/properties?f=json"
-```
-
-**Response:**
-
-```json
-{
-  "Study Area Name": "StudyAreas",
-  "School Name":     "Schools",
-  "Trustee Name":    "Trustee",
-  "maxNumFeatures":  100,
-  "returnFormat":    "json",
-  "isEditable":      false
-}
-```
-
-Use this to confirm:
-- `Study Area Name` matches the attendance boundary layer name in your map service
-- `School Name` matches the schools point layer name
-- `Trustee Name` matches your trustee layer name (if you have one)
-- `maxNumFeatures` is set to a value large enough for your district
-
-If any of these values look wrong, they need to be updated in ArcGIS Server Manager under the SOE properties for this service.
-
----
-
-## 7. Full Postman collection setup
-
-This section walks you through a complete Postman workspace that you can share with your whole team.
-
-### Step 1 — Create the environment
-
-In Postman: **Environments → New → name it "SSL API — Demo"**
-
-Add these variables:
-
-| Variable | Current Value |
-|----------|---------------|
-| `baseUrl` | `https://www.schoolsitelocator.com/server/rest/services/ssl_Demo/MapServer/exts/SSL_API` |
-| `apiKey` | `c17b5e11-172a-4e81-a79c-5af64f7f0e0b` |
-| `districtID` | `demo` |
-| `geocoderUrl` | `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates` |
-
-Save. Select this environment from the top-right dropdown before running any request.
-
-### Step 2 — Import the collection
-
-Create a file called `SSL_API.postman_collection.json` and paste the content below, then import via **File → Import** in Postman.
-
-```json
-{
-  "info": {
-    "name": "SSL API v3.05 — Full Collection",
-    "description": "SchoolSite Locator API — all endpoints with test scripts. Use with the 'SSL API — Demo' environment.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  },
-  "item": [
-    {
-      "name": "01. Health check — properties",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/properties?f=json"
-      },
-      "event": [{
-        "listen": "test",
-        "script": { "exec": [
-          "pm.test('Status 200', () => pm.response.to.have.status(200));",
-          "pm.test('Has Study Area Name', () => {",
-          "  pm.expect(pm.response.json()).to.have.property('Study Area Name');",
-          "});"
-        ]}
-      }]
-    },
-    {
-      "name": "02. locationQuery — point lookup",
-      "request": {
-        "method": "POST",
-        "url": "{{baseUrl}}/locationQuery",
-        "body": {
-          "mode": "urlencoded",
-          "urlencoded": [
-            { "key": "apiKey",     "value": "{{apiKey}}" },
-            { "key": "districtID", "value": "{{districtID}}" },
-            { "key": "location",   "value": "{\"x\":-118.2437,\"y\":34.0522,\"spatialReference\":{\"wkid\":4326}}" },
-            { "key": "f",          "value": "json" }
-          ]
-        }
-      },
-      "event": [{
-        "listen": "test",
-        "script": { "exec": [
-          "pm.test('Status 200', () => pm.response.to.have.status(200));",
-          "const body = pm.response.json();",
-          "pm.test('schoolResults present', () => pm.expect(body).to.have.property('schoolResults'));",
-          "pm.test('At least one school', () => pm.expect(Object.keys(body.schoolResults).length).to.be.above(0));",
-          "pm.test('No error in body', () => pm.expect(body).to.not.have.property('error'));",
-          "pm.environment.set('lastSchoolCount', Object.keys(body.schoolResults).length);"
-        ]}
-      }]
-    },
-    {
-      "name": "03. addressQuery — address lookup",
-      "request": {
-        "method": "POST",
-        "url": "{{baseUrl}}/addressQuery",
-        "body": {
-          "mode": "urlencoded",
-          "urlencoded": [
-            { "key": "apiKey",             "value": "{{apiKey}}" },
-            { "key": "districtID",         "value": "{{districtID}}" },
-            { "key": "address",            "value": "742 Evergreen Terrace Springfield OR 97401" },
-            { "key": "restGeocodeService", "value": "{{geocoderUrl}}" },
-            { "key": "f",                  "value": "json" }
-          ]
-        }
-      },
-      "event": [{
-        "listen": "test",
-        "script": { "exec": [
-          "pm.test('Status 200', () => pm.response.to.have.status(200));",
-          "const body = pm.response.json();",
-          "if (body.status === 'AMBIGUOUS_ADDRESS') {",
-          "  pm.test('Suggestions returned', () => pm.expect(body.suggestedAddresses.length).to.be.above(0));",
-          "} else {",
-          "  pm.test('schoolResults present', () => pm.expect(body).to.have.property('schoolResults'));",
-          "  pm.test('Geocode score > 80', () => pm.expect(body.geocodeResults.score).to.be.above(80));",
-          "  pm.environment.set('lastMatchedAddress', body.geocodeResults.matchedAddress);",
-          "}"
-        ]}
-      }]
-    },
-    {
-      "name": "04. locationQuery — bad API key (expect rejection)",
-      "request": {
-        "method": "POST",
-        "url": "{{baseUrl}}/locationQuery",
-        "body": {
-          "mode": "urlencoded",
-          "urlencoded": [
-            { "key": "apiKey",     "value": "invalid-key-12345" },
-            { "key": "districtID", "value": "{{districtID}}" },
-            { "key": "location",   "value": "{\"x\":-118.2437,\"y\":34.0522,\"spatialReference\":{\"wkid\":4326}}" },
-            { "key": "f",          "value": "json" }
-          ]
-        }
-      },
-      "event": [{
-        "listen": "test",
-        "script": { "exec": [
-          "pm.test('Bad key is rejected', () => {",
-          "  const body = pm.response.json();",
-          "  const hasError = body.error || body.message || (typeof body === 'string' && body.includes('not valid'));",
-          "  pm.expect(hasError).to.be.ok;",
-          "});"
-        ]}
-      }]
-    }
-  ]
-}
-```
-
-### Step 3 — Run the full collection
-
-Use Postman's **Collection Runner** to run all four requests in sequence:
-
-1. Right-click the collection name → **Run collection**
-2. Select the **SSL API — Demo** environment
-3. Set iterations to 1
-4. Click **Run SSL API v3.05**
-
-All four tests should pass. The bad API key request (item 04) is intentionally expected to fail so you can confirm error handling works correctly.
-
-### Step 4 — Run from the terminal with Newman
-
-```bash
-npm install -g newman
-
-newman run SSL_API.postman_collection.json \
-  --environment SSL_API_Demo.postman_environment.json \
-  --reporters cli
-```
-
----
-
-## 8. Understanding the response structure
-
-Every successful response from either endpoint has the same top-level structure. Here is what each key means and when to expect it to be empty.
-
-```
-Response
-├── geocodeResults          object
-│   ├── matchedAddress      string   — what the geocoder matched your input to
-│   └── score               number   — confidence 0–100. Only populated for addressQuery.
-│
-├── schoolResults           object   — keyed by SCHL_CODE
-│   └── "1042"              array    — always an array, usually one item
-│       └── [0]             object
-│           ├── SCHL_CODE   string   — the school's unique code
-│           ├── SCHOOL_NAME string
-│           ├── GRADES      string   — e.g. "K-5" or "6-8"
-│           ├── ADDRESS     string
-│           ├── PHONE       string
-│           ├── (all other fields from your Schools layer)
-│           └── geometry    object
-│               ├── x       number   — longitude of the school building
-│               └── y       number   — latitude of the school building
-│
-├── walkZoneResults         object   — keyed by OID. Empty {} if layer not configured.
-│   └── "5"                 array
-│       └── [0]             object   — all non-geometry fields from walkzones layer
-│
-└── trusteeResults          object   — flat object (not keyed). Empty {} if not configured.
-    ├── TRUSTEE             string   — the trustee code
-    ├── TRUSTEE_NAME        string
-    └── (all other non-geometry fields from Trustee layer)
-```
-
-**Things to watch out for:**
-
-- `schoolResults` keys are strings even though they look like numbers. Use `Object.entries()` or `Object.keys()` to iterate, not array indexing.
-- Each value in `schoolResults` is an **array**. Always access index `[0]` to get the school object.
-- `walkZoneResults` and `trusteeResults` come back as empty objects `{}` when the layer is not configured. Check `Object.keys(result.walkZoneResults).length > 0` before trying to read them.
-- `geocodeResults` is always an empty object `{}` for `locationQuery`. Do not depend on it having data unless you called `addressQuery`.
-
----
-
-## 9. Common errors and what they mean
+## 5. Common errors and what they mean
 
 | Error / Symptom | What happened | What to do |
 |----------------|---------------|-----------|
@@ -1435,10 +734,10 @@ Response
 
 ---
 
-## 10. Quick reference card
+## 6. Quick reference card
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
+-------------------------------------------------------------------------------
 │                        SSL API — Quick Reference                            │
 │                                                                             │
 │  Base URL                                                                   │
@@ -1448,32 +747,32 @@ Response
 │  Demo key:    c17b5e11-172a-4e81-a79c-5af64f7f0e0b                          │
 │  District ID: demo                                                          │
 │                                                                             │
-├─────────────────────────────────────────────────────────────────────────────┤
+-------------------------------------------------------------------------------
 │  Endpoint        Method  When to use                                        │
-│  ─────────────── ──────  ──────────────────────────────────────────────     │
+│  -------------- ------  -----------------------------------     │
 │  /locationQuery  POST    You have GPS coordinates (x/y)                     │
 │  /addressQuery   POST    User typed a street address                        │
 │  /properties     GET     Health check, verify layer config                  │
-├─────────────────────────────────────────────────────────────────────────────┤
+-------------------------------------------------------------------------------
 │  locationQuery required params                                              │
-│    apiKey      → your key                                                   │
-│    districtID  → district group layer name                                  │
-│    location    → {"x":LONGITUDE,"y":LATITUDE,"spatialReference":{"wkid":4326}}│
-│    f           → json                                                       │
+│    apiKey      - your key                                                   │
+│    districtID  - district group layer name                                  │
+│    location    = {"x":LONGITUDE,"y":LATITUDE,"spatialReference":{"wkid":4326}}│
+│    f           - json                                                       │
 │                                                                             │
 │  addressQuery required params                                               │
-│    apiKey             → your key                                            │
-│    districtID         → district group layer name                           │
-│    address            → full street address including city and state        │
-│    restGeocodeService → URL to findAddressCandidates endpoint               │
-│    f                  → json                                                │
-├─────────────────────────────────────────────────────────────────────────────┤
+│    apiKey             - your key                                            │
+│    districtID         - district group layer name                           │
+│    address            - full street address including city and state        │
+│    restGeocodeService - URL to findAddressCandidates endpoint               │
+│    f                  - json                                                │
+-------------------------------------------------------------------------------
 │  Always check these in your code                                            │
 │    • data.status === "AMBIGUOUS_ADDRESS" before reading schoolResults       │
 │    • Object.keys(data.schoolResults).length > 0 before iterating            │
-│    • data.schoolResults["1042"][0]  ← always index [0] on the array         │
-│    • x = longitude, y = latitude   ← not the other way around               │
-└─────────────────────────────────────────────────────────────────────────────┘
+│    • data.schoolResults["1042"][0]  - always index [0] on the array         │
+│    • x = longitude, y = latitude   - not the other way around               │
+-------------------------------------------------------------------------------
 ```
 
 Questions about the API or key provisioning — contact MGT Impact Solutions.
